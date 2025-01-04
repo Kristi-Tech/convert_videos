@@ -37,11 +37,10 @@ def convert_video(input_file, output_file):
         print(f"Error converting file {input_file}: {e}")
         return False
 
-def log_conversion(input_file, output_file, final_file):
+def log_conversion(input_file, output_file, original_size):
     """Log conversion details to a CSV file."""
     try:
-        original_size = os.path.getsize(input_file) / (1024 * 1024)  # Size in MB
-        converted_size = os.path.getsize(final_file) / (1024 * 1024)  # Size in MB
+        converted_size = os.path.getsize(output_file) / (1024 * 1024)  # Size in MB
         saved_size = original_size - converted_size  # Difference in MB
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         
@@ -55,13 +54,11 @@ def log_conversion(input_file, output_file, final_file):
 def retain_original_timestamps(original_file, converted_file):
     """Retain the original file's timestamps for the converted file."""
     try:
-        # Get original file's timestamps (modification and access times)
         stat = os.stat(original_file)
         original_mtime = stat.st_mtime  # Modification time
         original_atime = stat.st_atime  # Access time
 
-        # Set the converted file's timestamps to match the original
-        os.utime(converted_file, (original_atime, original_mtime))  # Use access and modification times
+        os.utime(converted_file, (original_atime, original_mtime))
         print(f"Updated timestamps for {converted_file} to match {original_file}")
     except Exception as e:
         print(f"Error retaining timestamps for {converted_file}: {e}")
@@ -70,24 +67,19 @@ def process_video(video):
     print(f"Processing: {video}")
     temp_output = video + ".tmp.mp4"
     final_output = os.path.splitext(video)[0] + ".mp4"  # Ensure the output has .mp4 extension
-    
-    # Debugging prints
-    print(f"Temporary Output: {temp_output}")
-    print(f"Final Output: {final_output}")
 
+    original_size = os.path.getsize(video) / (1024 * 1024)  # Save original size before deletion
+    
     if convert_video(video, temp_output):
         try:
-            # Retain the original timestamps for the converted file before deleting the original
             retain_original_timestamps(video, temp_output)
 
-            # Delete the original file after conversion is successful
             if os.path.exists(video):
                 print(f"Deleting original file: {video}")
                 os.remove(video)
 
-            # Rename the converted file to replace the original file
-            os.rename(temp_output, final_output)  # Rename temp file to final output with .mp4 extension
-            log_conversion(video, temp_output, final_output)
+            os.rename(temp_output, final_output)
+            log_conversion(video, final_output, original_size)
             print(f"Converted and replaced: {video} -> {final_output}")
         except Exception as e:
             print(f"Error replacing file {video}: {e}")
@@ -103,8 +95,12 @@ def process_folder(folder):
 if __name__ == "__main__":
     initialize_csv_log()  # Initialize the CSV file with headers
     source_folder = input("Enter the path to the folder with videos: ").strip()
+    
+    # Normalize the folder path
+    source_folder = os.path.expanduser(source_folder.strip("'\""))
+    
     if os.path.isdir(source_folder):
         process_folder(source_folder)
         print(f"Conversion completed. Log saved to '{LOG_FILE}'.")
     else:
-        print("Invalid folder path.")
+        print(f"Invalid folder path: {source_folder}")
